@@ -1,0 +1,9 @@
+quart
+quart-cors
+httpx
+requests
+python-dotenv
+coloredlogs
+APScheduler
+hypercorn
+

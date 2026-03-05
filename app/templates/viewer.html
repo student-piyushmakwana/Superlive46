@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Superlive Premium Viewer</title>
+    <!-- Mukta Font & Material Symbols Rounded -->
+    <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.18.2.js"></script>
+    <style>
+        :root {
+            --md-sys-color-primary: #D0BCFF;
+            --md-sys-color-on-primary: #381E72;
+            --md-sys-color-primary-container: #4F378B;
+            --md-sys-color-on-primary-container: #EADDFF;
+            --md-sys-color-secondary: #CCC2DC;
+            --md-sys-color-on-secondary: #332D41;
+            --md-sys-color-surface: #1C1B1F;
+            --md-sys-color-on-surface: #E6E1E5;
+            --md-sys-color-surface-variant: #49454F;
+            --md-sys-color-on-surface-variant: #CAC4D0;
+            --md-sys-color-outline: #938F99;
+            --md-sys-color-error: #F2B8B5;
+            --font-display: 'Mukta', sans-serif;
+            --font-body: 'Mukta', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: var(--font-body);
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Top Bar */
+        .top-app-bar {
+            height: 64px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--md-sys-color-surface);
+            border-bottom: 1px solid var(--md-sys-color-surface-variant);
+            z-index: 10;
+        }
+
+        .top-app-bar h1 {
+            font-family: var(--font-display);
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+
+        /* Main Content */
+        .main-container {
+            flex: 1;
+            display: flex;
+            padding: 24px;
+            gap: 24px;
+            height: calc(100vh - 64px);
+            overflow: hidden;
+        }
+
+        /* Responsive Layout */
+        @media (max-width: 900px) {
+            .main-container {
+                flex-direction: column;
+                padding: 16px;
+                overflow-y: auto;
+                height: auto;
+            }
+
+            .sidebar {
+                width: 100% !important;
+                order: 2;
+            }
+
+            .viewport-container {
+                width: 100%;
+                aspect-ratio: 16/9;
+                flex: none !important;
+                height: auto !important;
+                order: 1;
+            }
+        }
+
+        /* Sidebar/Controls */
+        .sidebar {
+            width: 360px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .card {
+            background-color: #25232a;
+            border-radius: 28px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* M3 Input Field */
+        .input-group {
+            position: relative;
+            width: 100%;
+        }
+
+        .text-field {
+            width: 100%;
+            background-color: var(--md-sys-color-surface-variant);
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            color: var(--md-sys-color-on-surface);
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .text-field:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--md-sys-color-primary);
+        }
+
+        /* M3 Button */
+        .btn-filled {
+            height: 56px;
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border: none;
+            border-radius: 16px;
+            padding: 0 24px;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.2s;
+        }
+
+        .btn-filled:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(208, 188, 255, 0.3);
+        }
+
+        /* Viewport */
+        .viewport-container {
+            flex: 1;
+            background-color: #000;
+            border-radius: 28px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #remote-player {
+            width: 100%;
+            height: 100%;
+            transition: filter 0.3s;
+        }
+
+        .blur-active {
+            filter: blur(40px);
+        }
+
+        /* Player Controls */
+        .player-controls {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            background: rgba(28, 27, 31, 0.85);
+            padding: 12px;
+            border-radius: 24px;
+            backdrop-filter: blur(12px);
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .viewport-container:hover .player-controls {
+            opacity: 1;
+        }
+
+        .icon-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            border: none;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: scale(1.1);
+        }
+
+        .icon-btn.active {
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+        }
+
+        #status-chip {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(8px);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #aaa;
+            box-shadow: 0 0 8px rgba(170, 170, 170, 0.5);
+        }
+
+        .dot.online {
+            background: #4caf50;
+            box-shadow: 0 0 12px rgba(76, 175, 80, 0.8);
+        }
+
+        /* Footer / Signature */
+        .signature {
+            margin-top: auto;
+            text-align: center;
+            padding: 16px;
+            font-size: 14px;
+            color: var(--md-sys-color-on-surface-variant);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .signature .heart {
+            color: #ff4081;
+            display: inline-block;
+            animation: heartbeat 1.5s infinite;
+        }
+
+        @keyframes heartbeat {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .piyush-brand {
+            font-weight: 700;
+            color: var(--md-sys-color-primary);
+            font-size: 16px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Mini Window */
+        .mini-mode {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 340px;
+            height: 200px;
+            z-index: 1000;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--md-sys-color-primary);
+        }
+    </style>
+</head>
+
+<body>
+    <header class="top-app-bar">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="material-symbols-rounded"
+                style="color: var(--md-sys-color-primary); font-size: 32px;">stream</span>
+            <h1>Superlive Premium</h1>
+        </div>
+        <div id="status-text" style="font-size: 14px; color: var(--md-sys-color-on-surface-variant); font-weight: 500;">
+            Premium Experience
+        </div>
+    </header>
+
+    <main class="main-container">
+        <aside class="sidebar">
+            <div class="card">
+                <div class="input-group">
+                    <input type="text" id="stream-id" class="text-field" placeholder="Enter Stream ID">
+                </div>
+                <button class="btn-filled" onclick="fetchAndPlay()">
+                    <span class="material-symbols-rounded">play_circle</span>
+                    Start Viewing
+                </button>
+            </div>
+
+            <div id="info-card" class="card" style="display: none;">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <img id="avatar" src=""
+                        style="width: 56px; height: 56px; border-radius: 16px; object-fit: cover; border: 2px solid var(--md-sys-color-primary);">
+                    <div>
+                        <div id="streamer-name" style="font-weight: 700; font-size: 18px;">Username</div>
+                        <div id="viewers" style="font-size: 13px; color: var(--md-sys-color-on-surface-variant)">0
+                            Viewers</div>
+                    </div>
+                </div>
+                <div id="headline"
+                    style="font-size: 14px; line-height: 1.4; color: var(--md-sys-color-on-surface-variant)"></div>
+            </div>
+
+            <footer class="signature">
+                <div>Developed with <span class="heart">❤️</span> by</div>
+                <div class="piyush-brand">PIYUSH</div>
+            </footer>
+        </aside>
+
+        <section class="viewport-container" id="viewport">
+            <div id="remote-player"></div>
+            <div id="placeholder"></div>
+
+            <div id="status-chip">
+                <div class="dot" id="status-dot"></div>
+                <span id="status-label">Idle</span>
+            </div>
+
+            <div class="player-controls">
+                <button class="icon-btn" onclick="toggleMute()" title="Mute/Unmute">
+                    <span class="material-symbols-rounded" id="mute-icon">volume_up</span>
+                </button>
+                <button class="icon-btn" onclick="toggleBlur()" title="Blur/Unblur">
+                    <span class="material-symbols-rounded" id="blur-icon">blur_on</span>
+                </button>
+                <button class="icon-btn" onclick="toggleMini()" title="Mini/Full Window">
+                    <span class="material-symbols-rounded" id="mini-icon">picture_in_picture_alt</span>
+                </button>
+                <button class="icon-btn" onclick="toggleFullscreen()" title="Fullscreen">
+                    <span class="material-symbols-rounded">fullscreen</span>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const client = AgoraRTC.createClient({ mode: "live", codec: "h264" });
+        let remoteUser = null;
+        let isMuted = false;
+        let isBlurred = false;
+        let isMini = false;
+
+        async function fetchAndPlay() {
+            const streamId = document.getElementById('stream-id').value;
+            if (!streamId) return;
+
+            const statusLabel = document.getElementById('status-label');
+            const statusDot = document.getElementById('status-dot');
+            statusLabel.innerText = "Connecting...";
+
+            try {
+                const response = await fetch('/api/viewer/stream_info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ livestream_id: streamId })
+                });
+
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                updateUI(data);
+                joinStream(data.agora_app_id, data.stream_details);
+
+            } catch (err) {
+                console.error(err);
+                statusLabel.innerText = "Error";
+                statusDot.className = "dot";
+                alert("Failed to fetch: " + err.message);
+            }
+        }
+
+        function updateUI(data) {
+            document.getElementById('info-card').style.display = 'flex';
+            document.getElementById('streamer-name').innerText = data.user?.name || "Unknown";
+            document.getElementById('viewers').innerText = (data.stream_details?.viewer_count || 0) + " Viewers";
+            document.getElementById('headline').innerText = data.stream_details?.headline || "";
+            document.getElementById('avatar').src = data.user?.profile_image?.thumbnail_url || "";
+        }
+
+        async function joinStream(appId, details) {
+            const statusLabel = document.getElementById('status-label');
+            const statusDot = document.getElementById('status-dot');
+
+            try {
+                if (client.connectionState === 'CONNECTED') await client.leave();
+
+                await client.join(appId, details.channel_id, details.agora_channel_token, details.agora_id);
+
+                statusLabel.innerText = "Live Now";
+                statusDot.className = "dot online";
+                document.getElementById('placeholder').style.display = 'none';
+
+            } catch (err) {
+                console.error(err);
+                statusLabel.innerText = "Failed";
+            }
+        }
+
+        client.on("user-published", async (user, mediaType) => {
+            await client.subscribe(user, mediaType);
+            remoteUser = user;
+
+            if (mediaType === "video") {
+                const container = document.getElementById("remote-player");
+                container.innerHTML = '';
+                user.videoTrack.play(container);
+            }
+            if (mediaType === "audio") {
+                user.audioTrack.play();
+            }
+        });
+
+        function toggleMute() {
+            if (!remoteUser || !remoteUser.audioTrack) return;
+            isMuted = !isMuted;
+            remoteUser.audioTrack.setVolume(isMuted ? 0 : 100);
+            document.getElementById('mute-icon').innerText = isMuted ? 'volume_off' : 'volume_up';
+            document.getElementById('mute-icon').parentElement.classList.toggle('active', isMuted);
+        }
+
+        function toggleBlur() {
+            isBlurred = !isBlurred;
+            document.getElementById('remote-player').classList.toggle('blur-active', isBlurred);
+            document.getElementById('blur-icon').innerText = isBlurred ? 'blur_off' : 'blur_on';
+            document.getElementById('blur-icon').parentElement.classList.toggle('active', isBlurred);
+        }
+
+        function toggleMini() {
+            isMini = !isMini;
+            document.getElementById('viewport').classList.toggle('mini-mode', isMini);
+            document.getElementById('mini-icon').innerText = isMini ? 'fullscreen_exit' : 'picture_in_picture_alt';
+        }
+
+        function toggleFullscreen() {
+            const elem = document.getElementById('viewport');
+            if (!document.fullscreenElement) {
+                elem.requestFullscreen().catch(err => alert(err.message));
+            } else {
+                document.exitFullscreen();
+            }
+        }
+    </script>
+</body>
+
+</html>
