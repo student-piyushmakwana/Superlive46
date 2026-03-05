@@ -1,5 +1,10 @@
 from quart import Quart
 from quart_cors import cors
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import httpx
+import logging
+import asyncio
+
 from app.api.routes.device_routes import device_bp
 from app.api.routes.auth_routes import auth_bp
 from app.api.routes.user_routes import user_bp
@@ -9,11 +14,12 @@ from app.api.routes.discover_routes import discover_bp
 from app.api.routes.tempmail_routes import temp_mail_bp
 from app.api.routes.auto_gift_routes import auto_gift_bp
 from app.api.routes.viewer_routes import viewer_bp
-import sys
 from app.core.logger import setup_logger
+from app.core.http_client import SuperliveHttpClient
 
 # Initialize the global application logger
 setup_logger()
+logger = logging.getLogger("superlive.main")
 
 def create_app():
     app = Quart(__name__)
@@ -30,22 +36,36 @@ def create_app():
     app.register_blueprint(auto_gift_bp, url_prefix="/api/auto/gift")
     app.register_blueprint(viewer_bp, url_prefix="/api/viewer")
     
-    @app.before_serving
-    async def start_pinger():
-        import asyncio
-        import httpx
-        
-        async def pinger():
+    # Initialize Scheduler
+    scheduler = AsyncIOScheduler()
+
+    async def keep_alive():
+        """Pings the deployment URL to keep the Render instance active."""
+        url = "https://pvtsuperlive.onrender.com/api/viewer/health"
+        try:
             async with httpx.AsyncClient() as client:
-                while True:
-                    await asyncio.sleep(600)  # 10 minutes
-                    try:
-                        # Self-ping to keep Render alive
-                        await client.get("http://127.0.0.1:5000/api/viewer/health")
-                    except Exception:
-                        pass
+                response = await client.get(url, timeout=10.0)
+                logger.info(f"Keep-alive ping sent to {url}. Status: {response.status_code}")
+        except Exception as e:
+            logger.error(f"Keep-alive ping failed: {e}")
+
+    @app.before_serving
+    async def startup():
+        # Initialize persistent HTTP client
+        await SuperliveHttpClient.get_client()
         
-        app.add_background_task(pinger)
+        # Start keep-alive scheduler (every 10 minutes)
+        scheduler.add_job(keep_alive, 'interval', minutes=10)
+        scheduler.start()
+        logger.info("APScheduler started: Keep-alive job active every 10 minutes")
+
+    @app.after_serving
+    async def shutdown():
+        # Shutdown scheduler
+        scheduler.shutdown()
+        # Close persistent HTTP client
+        await SuperliveHttpClient.close_client()
+        logger.info("Application shutdown: Cleaned up resources")
 
     return app
 

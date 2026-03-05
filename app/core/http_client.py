@@ -1,15 +1,42 @@
 import httpx
 import logging
+import asyncio
+from typing import Optional
 from app.core.config import config
 
 logger = logging.getLogger("superlive.http_client")
 
 class SuperliveHttpClient:
-    """Manages requests to the Superlive upstream API with correct headers."""
+    """Manages a persistent AsyncClient session for efficient upstream communication."""
+    
+    _client: Optional[httpx.AsyncClient] = None
+    _lock = asyncio.Lock()
+
+    @classmethod
+    async def get_client(cls) -> httpx.AsyncClient:
+        """Returns the global persistent client, initializing if necessary."""
+        if cls._client is None or cls._client.is_closed:
+            async with cls._lock:
+                if cls._client is None or cls._client.is_closed:
+                    cls._client = httpx.AsyncClient(
+                        timeout=config.REQUEST_TIMEOUT,
+                        # Better defaults for a proxy service
+                        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+                        follow_redirects=True
+                    )
+                    logger.info("Initialized persistent HTTPX AsyncClient")
+        return cls._client
+
+    @classmethod
+    async def close_client(cls):
+        """Closes the persistent client session."""
+        if cls._client and not cls._client.is_closed:
+            await cls._client.aclose()
+            logger.info("Closed persistent HTTPX AsyncClient")
 
     @staticmethod
     def construct_headers(domain_config: dict, device_id: str = None, auth_token: str = None):
-        """Constructs headers specifically mirroring the Chrome Web Client for the given origin config."""
+        """Constructs headers mirroring the Chrome Web Client for the given origin config."""
         origin = domain_config["origin"]
         headers = {
             "authority": domain_config["authority"],
@@ -31,7 +58,6 @@ class SuperliveHttpClient:
         
         if device_id:
             headers["device-id"] = device_id
-            
         if auth_token:
             headers["authorization"] = f"Token {auth_token}"
             
@@ -39,33 +65,33 @@ class SuperliveHttpClient:
 
     @classmethod
     async def post(cls, endpoint: str, json_data: dict, domain_config: dict, proxy_url: str = None, device_id: str = None, auth_token: str = None) -> httpx.Response:
-        """Sends a POST request to Superlive."""
-        # Ensure api_base doesn't have a trailing slash if endpoint has a leading slash
+        """Sends a POST request to Superlive using the persistent client."""
         api_base = domain_config["api_base"]
-        if api_base.endswith('/') and endpoint.startswith('/'):
-            url = f"{api_base[:-1]}{endpoint}"
-        else:
-            url = f"{api_base}{endpoint}"
+        url = f"{api_base.rstrip('/')}/{endpoint.lstrip('/')}"
             
         headers = cls.construct_headers(domain_config, device_id=device_id, auth_token=auth_token)
+        client = await cls.get_client()
         
-        # Configure client kwargs
-        client_kwargs = {
-            "headers": headers,
-            "timeout": config.REQUEST_TIMEOUT
-        }
-        
+        # Requests with proxies still require a separate client instance in httpx 
+        # unless we manage a pool of proxy-specific clients.
+        # For simplicity and given the usage, we'll use a temporary client if a proxy is needed.
         if proxy_url:
-            client_kwargs["proxy"] = proxy_url
-            
-        async with httpx.AsyncClient(**client_kwargs) as client:
-            try:
-                response = await client.post(url, json=json_data)
-                response.raise_for_status()
-                return response
-            except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP Return Error {e.response.status_code}: {e.response.text}")
-                raise e
-            except Exception as e:
-                logger.error(f"HTTP Request Failed: {e}")
-                raise e
+            async with httpx.AsyncClient(proxy=proxy_url, timeout=config.REQUEST_TIMEOUT, headers=headers) as proxy_client:
+                try:
+                    response = await proxy_client.post(url, json=json_data)
+                    response.raise_for_status()
+                    return response
+                except Exception as e:
+                    logger.error(f"Proxy Request Failed: {e}")
+                    raise e
+        
+        try:
+            response = await client.post(url, json=json_data, headers=headers)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Upstream HTTP Error {e.response.status_code}: {e.response.text}")
+            raise e
+        except Exception as e:
+            logger.error(f"HTTP Request Failed: {e}")
+            raise e
