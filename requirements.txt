@@ -6,4 +6,4 @@ python-dotenv
 coloredlogs
 APScheduler
 hypercorn
-
+faker
