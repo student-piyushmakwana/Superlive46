@@ -148,7 +148,8 @@ class GiftOrchestrator:
 
             # --- 8 & 9. Update Profile Name and Complete ---
             try:
-                name = fake.name()
+                hearts = ["🧡", "💜", "💛", "💚", "💙", "🤎", "🖤", "🤍"]
+                name = f"Piyush {random.choice(hearts)}"
                 # Initial update normally hit here in the manual flow
                 await SuperliveService.update_profile(
                     update_data={"name": name},
