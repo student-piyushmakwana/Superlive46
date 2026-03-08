@@ -307,6 +307,80 @@
             box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
             border: 2px solid var(--md-sys-color-primary);
         }
+
+        /* Android Style Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 32px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--md-sys-color-surface-variant);
+            transition: .4s;
+            border-radius: 32px;
+            border: 2px solid var(--md-sys-color-outline);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 24px;
+            width: 24px;
+            left: 2px;
+            bottom: 2px;
+            background-color: var(--md-sys-color-outline);
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--md-sys-color-primary);
+            border-color: var(--md-sys-color-primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+            background-color: var(--md-sys-color-on-primary);
+            height: 28px;
+            width: 28px;
+            left: 0px;
+            bottom: 0px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .pulse {
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(208, 188, 255, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(208, 188, 255, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(208, 188, 255, 0); }
+        }
     </style>
 </head>
 
@@ -332,6 +406,34 @@
                     <span class="material-symbols-rounded">play_circle</span>
                     Start Viewing
                 </button>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span class="material-symbols-rounded" style="color: var(--md-sys-color-primary)">redeem</span>
+                        <span style="font-weight: 700; font-size: 16px;">Auto-Gift Control</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="auto-gift-toggle" onchange="toggleAutoGift()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <div class="status-badge">
+                        <div class="dot" id="gift-status-dot"></div>
+                        <span id="gift-status-label">Inactive</span>
+                    </div>
+                    <div class="status-badge">
+                        <span class="material-symbols-rounded" style="font-size: 14px;">groups</span>
+                        <span>Workers: 2</span>
+                    </div>
+                    <div class="status-badge">
+                        <span class="material-symbols-rounded" style="font-size: 14px;">vpn_lock</span>
+                        <span>Proxy: Off</span>
+                    </div>
+                </div>
             </div>
 
             <div id="info-card" class="card" style="display: none;">
@@ -484,6 +586,62 @@
                 elem.requestFullscreen().catch(err => alert(err.message));
             } else {
                 document.exitFullscreen();
+            }
+        }
+
+        async function toggleAutoGift() {
+            const toggle = document.getElementById('auto-gift-toggle');
+            const statusLabel = document.getElementById('gift-status-label');
+            const statusDot = document.getElementById('gift-status-dot');
+            const streamId = document.getElementById('stream-id').value;
+
+            if (toggle.checked) {
+                if (!streamId) {
+                    alert("Please enter a Stream ID first");
+                    toggle.checked = false;
+                    return;
+                }
+
+                statusLabel.innerText = "Starting...";
+                try {
+                    const resp = await fetch('/api/auto/gift', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: 10,
+                            livestream_id: streamId,
+                            worker: 2,
+                            use_proxy: false
+                        })
+                    });
+                    const data = await resp.json();
+                    if (resp.ok) {
+                        statusLabel.innerText = "Running";
+                        statusDot.classList.add('online', 'pulse');
+                    } else {
+                        throw new Error(data.message || data.error);
+                    }
+                } catch (err) {
+                    alert("Failed to start auto-gift: " + err.message);
+                    toggle.checked = false;
+                    statusLabel.innerText = "Inactive";
+                    statusDot.classList.remove('online', 'pulse');
+                }
+            } else {
+                statusLabel.innerText = "Stopping...";
+                try {
+                    const resp = await fetch('/api/auto/gift', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: 12 })
+                    });
+                    if (resp.ok) {
+                        statusLabel.innerText = "Inactive";
+                        statusDot.classList.remove('online', 'pulse');
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
             }
         }
     </script>
