@@ -7,3 +7,4 @@ coloredlogs
 APScheduler
 hypercorn
 faker
+motor
