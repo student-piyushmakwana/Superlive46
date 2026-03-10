@@ -201,15 +201,8 @@ async def search_users():
         
         return jsonify(result), 200
         
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Upstream HTTP Error: {e.response.text}")
-        return jsonify({
-            "error": "Upstream API Error", 
-            "status_code": e.response.status_code, 
-            "details": e.response.text
-        }), e.response.status_code
     except Exception as e:
-        logger.error(f"Internal Route Error: {e}")
+        logger.error(f"Search route error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @user_bp.route("/verify/complete", methods=["POST"])

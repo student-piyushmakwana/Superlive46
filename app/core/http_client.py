@@ -70,28 +70,51 @@ class SuperliveHttpClient:
         url = f"{api_base.rstrip('/')}/{endpoint.lstrip('/')}"
             
         headers = cls.construct_headers(domain_config, device_id=device_id, auth_token=auth_token)
-        client = await cls.get_client()
-        
+
         # Requests with proxies still require a separate client instance in httpx 
-        # unless we manage a pool of proxy-specific clients.
-        # For simplicity and given the usage, we'll use a temporary client if a proxy is needed.
         if proxy_url:
             async with httpx.AsyncClient(proxy=proxy_url, timeout=config.REQUEST_TIMEOUT, headers=headers) as proxy_client:
                 try:
                     response = await proxy_client.post(url, json=json_data)
                     response.raise_for_status()
                     return response
+                except httpx.HTTPStatusError as e:
+                    status = e.response.status_code
+                    try:
+                        body = e.response.json()
+                    except Exception:
+                        body = e.response.text
+                    logger.error(f"Upstream HTTP Error {status}: {body}")
+                    raise RuntimeError(f"Upstream returned HTTP {status}: {body}") from None
                 except Exception as e:
                     logger.error(f"Proxy Request Failed: {e}")
-                    raise e
-        
-        try:
-            response = await client.post(url, json=json_data, headers=headers)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Upstream HTTP Error {e.response.status_code}: {e.response.text}")
-            raise e
-        except Exception as e:
-            logger.error(f"HTTP Request Failed: {e}")
-            raise e
+                    raise
+
+        # Use persistent client, reset if in bad state
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                client = await cls.get_client()
+                response = await client.post(url, json=json_data, headers=headers)
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                try:
+                    body = e.response.json()
+                except Exception:
+                    body = e.response.text
+                logger.error(f"Upstream HTTP Error {status}: {body}")
+                raise RuntimeError(f"Upstream returned HTTP {status}: {body}") from None
+            except (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadError) as e:
+                logger.warning(f"Connection error on attempt {attempt + 1}: {e}. Resetting client...")
+                # Force client reset on connection errors
+                async with cls._lock:
+                    if cls._client and not cls._client.is_closed:
+                        await cls._client.aclose()
+                    cls._client = None
+                if attempt == max_retries - 1:
+                    raise RuntimeError(f"Connection failed after {max_retries} attempts: {e}") from None
+            except Exception as e:
+                logger.error(f"HTTP Request Failed: {e}")
+                raise
