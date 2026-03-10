@@ -43,7 +43,7 @@ def create_app():
 
     async def keep_alive():
         """Pings the deployment URL to keep the Render instance active."""
-        url = "https://pvtsuperlive.onrender.com/api/viewer/health"
+        url = "https://freemepvt.onrender.com/api/viewer/health"
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, timeout=10.0)
