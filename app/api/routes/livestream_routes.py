@@ -12,21 +12,31 @@ livestream_bp = Blueprint("livestream", __name__)
 async def retrieve_livestream():
     """
     Exposes POST /livestream/retrieve locally.
-    Expects 'livestream_id' and 'auth_token'.
+    Expects 'livestream_id'. 'auth_token' is optional.
     """
     try:
         data = await request.get_json()
-        if not data or 'livestream_id' not in data or 'auth_token' not in data:
-            return jsonify({"error": "Missing livestream_id or auth_token"}), 400
-            
-        auth_token = data["auth_token"]
-        if auth_token not in SessionStore.ACTIVE_USERS:
-            return jsonify({"error": "Invalid auth_token or session expired."}), 401
+        if not data or 'livestream_id' not in data:
+            return jsonify({"error": "Missing livestream_id"}), 400
             
         proxy_url = data.get("proxy")
-        session = SessionStore.ACTIVE_USERS[auth_token]
+        auth_token = data.get("auth_token")
+
+        if auth_token and auth_token in SessionStore.ACTIVE_USERS:
+            session = SessionStore.ACTIVE_USERS[auth_token]
+        else:
+            logger.info("No active session, registering fresh device for livestream retrieve...")
+            device_res = await SuperliveService.register_device(proxy_url=proxy_url)
+            session = {
+                "guid": device_res["upstream_response"]["guid"],
+                "profile": device_res["device_profile"],
+                "domain_config": device_res["domain_config"]
+            }
+            auth_token = None
         
-        logger.info(f"Retrieving livestream {data['livestream_id']} via {session['domain_config']['origin']}...")
+        domain = session["domain_config"]["origin"]
+        logger.info(f"Retrieving livestream {data['livestream_id']} via {domain}...")
+        
         result = await SuperliveService.retrieve_livestream(
             livestream_id=str(data["livestream_id"]),
             auth_token=auth_token,

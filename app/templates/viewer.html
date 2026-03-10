@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -308,78 +308,88 @@
             border: 2px solid var(--md-sys-color-primary);
         }
 
-        /* Android Style Switch */
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 52px;
-            height: 32px;
+        /* Search Results */
+        .search-results {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 280px;
+            overflow-y: auto;
         }
 
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
+        .search-results::-webkit-scrollbar {
+            width: 4px;
         }
 
-        .slider {
-            position: absolute;
+        .search-results::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .search-results::-webkit-scrollbar-thumb {
+            background: var(--md-sys-color-outline);
+            border-radius: 4px;
+        }
+
+        .user-result-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 14px;
             cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: var(--md-sys-color-surface-variant);
-            transition: .4s;
-            border-radius: 32px;
-            border: 2px solid var(--md-sys-color-outline);
+            transition: background 0.2s;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid transparent;
         }
 
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 24px;
-            width: 24px;
-            left: 2px;
-            bottom: 2px;
-            background-color: var(--md-sys-color-outline);
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .slider {
-            background-color: var(--md-sys-color-primary);
+        .user-result-item:hover {
+            background: rgba(208, 188, 255, 0.1);
             border-color: var(--md-sys-color-primary);
         }
 
-        input:checked + .slider:before {
-            transform: translateX(20px);
-            background-color: var(--md-sys-color-on-primary);
-            height: 28px;
-            width: 28px;
-            left: 0px;
-            bottom: 0px;
+        .user-result-item img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 1.5px solid var(--md-sys-color-primary);
         }
 
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 12px;
-            border-radius: 8px;
+        .user-result-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-result-name {
+            font-weight: 600;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-result-sub {
             font-size: 12px;
-            font-weight: 500;
-            background: rgba(255,255,255,0.05);
+            color: var(--md-sys-color-on-surface-variant);
         }
 
-        .pulse {
-            animation: pulse-red 2s infinite;
+        .live-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: #e91e63;
+            color: #fff;
+            flex-shrink: 0;
+            letter-spacing: 0.5px;
         }
 
-        @keyframes pulse-red {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(208, 188, 255, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(208, 188, 255, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(208, 188, 255, 0); }
+        .no-results {
+            text-align: center;
+            padding: 16px;
+            color: var(--md-sys-color-on-surface-variant);
+            font-size: 13px;
         }
     </style>
 </head>
@@ -399,40 +409,23 @@
     <main class="main-container">
         <aside class="sidebar">
             <div class="card">
-                <div class="input-group">
-                    <input type="text" id="stream-id" class="text-field" placeholder="Enter Stream ID">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                    <span class="material-symbols-rounded"
+                        style="color: var(--md-sys-color-primary)">person_search</span>
+                    <span style="font-weight: 700; font-size: 16px;">Find a Streamer</span>
                 </div>
-                <button class="btn-filled" onclick="fetchAndPlay()">
-                    <span class="material-symbols-rounded">play_circle</span>
-                    Start Viewing
-                </button>
-            </div>
-
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span class="material-symbols-rounded" style="color: var(--md-sys-color-primary)">redeem</span>
-                        <span style="font-weight: 700; font-size: 16px;">Auto-Gift Control</span>
+                <div style="display: flex; gap: 8px;">
+                    <div class="input-group" style="flex: 1;">
+                        <input type="text" id="search-query" class="text-field" placeholder="Search by name or user ID"
+                            onkeydown="if(event.key==='Enter') searchUsers()">
                     </div>
-                    <label class="switch">
-                        <input type="checkbox" id="auto-gift-toggle" onchange="toggleAutoGift()">
-                        <span class="slider"></span>
-                    </label>
+                    <button class="btn-filled" onclick="searchUsers()"
+                        style="flex-shrink: 0; width: 56px; padding: 0; border-radius: 12px;">
+                        <span class="material-symbols-rounded">search</span>
+                    </button>
                 </div>
-                
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <div class="status-badge">
-                        <div class="dot" id="gift-status-dot"></div>
-                        <span id="gift-status-label">Inactive</span>
-                    </div>
-                    <div class="status-badge">
-                        <span class="material-symbols-rounded" style="font-size: 14px;">groups</span>
-                        <span>Workers: 2</span>
-                    </div>
-                    <div class="status-badge">
-                        <span class="material-symbols-rounded" style="font-size: 14px;">vpn_lock</span>
-                        <span>Proxy: Off</span>
-                    </div>
+                <div id="search-results-container" style="display: none;">
+                    <div class="search-results" id="search-results-list"></div>
                 </div>
             </div>
 
@@ -451,7 +444,7 @@
             </div>
 
             <footer class="signature">
-                <div>Developed with <span class="heart">❤️</span> by</div>
+                <div>Developed with <span class="heart">â¤ï¸</span> by</div>
                 <div class="piyush-brand">PIYUSH</div>
             </footer>
         </aside>
@@ -483,62 +476,133 @@
     </main>
 
     <script>
+        // ── Superlive Viewer ───────────────────────────────────────────────────────
+        // Handles: user search, stream retrieve, Agora join, and player controls.
+
+        const AGORA_APP_ID = "466f7443143a3df42868339f73e53887";
         const client = AgoraRTC.createClient({ mode: "live", codec: "h264" });
         let remoteUser = null;
         let isMuted = false;
         let isBlurred = false;
         let isMini = false;
 
-        async function fetchAndPlay() {
-            const streamId = document.getElementById('stream-id').value;
-            if (!streamId) return;
+        // ── API helper ────────────────────────────────────────────────────────────
+        async function apiPost(endpoint, body) {
+            const resp = await fetch(endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+            const rawText = await resp.text();
+            console.log(`[api] ${endpoint} →`, rawText || "(empty)");
+            if (!rawText) throw new Error(`Server returned empty response from ${endpoint}. Check server logs.`);
+            const data = JSON.parse(rawText);
+            if (!resp.ok) throw new Error(data.error || data.message || `HTTP ${resp.status}`);
+            return data;
+        }
 
-            const statusLabel = document.getElementById('status-label');
-            const statusDot = document.getElementById('status-dot');
+        // ── Step 1: Search users ───────────────────────────────────────────────────
+        async function searchUsers() {
+            const query = document.getElementById("search-query").value.trim();
+            if (!query) return;
+
+            const statusLabel = document.getElementById("status-label");
+            statusLabel.innerText = "Searching...";
+
+            try {
+                const data = await apiPost("/api/users/search", { search_query: query });
+                const items = data.upstream_response?.items || [];
+                renderSearchResults(items);
+                statusLabel.innerText = "Idle";
+            } catch (err) {
+                console.error(err);
+                statusLabel.innerText = "Error";
+                alert("Search failed: " + err.message);
+            }
+        }
+
+        function renderSearchResults(users) {
+            const container = document.getElementById("search-results-container");
+            const list = document.getElementById("search-results-list");
+            list.innerHTML = "";
+
+            if (!users.length) {
+                list.innerHTML = '<div class="no-results">No users found</div>';
+                container.style.display = "block";
+                return;
+            }
+
+            users.forEach(user => {
+                const isLive = !!user.livestream_id;
+                const item = document.createElement("div");
+                item.className = "user-result-item";
+                item.innerHTML = `
+                    <img src="${user.profile_image?.thumbnail_url || ""}" onerror="this.src=''"
+                        style="background: #49454F;">
+                    <div class="user-result-info">
+                        <div class="user-result-name">${user.name || "Unknown"}</div>
+                        <div class="user-result-sub">Lv.${user.level || 0} · ID: ${user.user_id}</div>
+                    </div>
+                    ${isLive ? '<span class="live-badge">LIVE</span>' : ""}
+                `;
+                if (isLive) {
+                    item.onclick = () => fetchAndPlay(user.livestream_id, user);
+                } else {
+                    item.style.opacity = "0.5";
+                    item.style.cursor = "default";
+                    item.title = "User is not live";
+                }
+                list.appendChild(item);
+            });
+
+            container.style.display = "block";
+        }
+
+        // ── Step 2: Fetch stream details and join ─────────────────────────────────
+        async function fetchAndPlay(livestreamId, userData) {
+            const statusLabel = document.getElementById("status-label");
+            const statusDot = document.getElementById("status-dot");
             statusLabel.innerText = "Connecting...";
 
             try {
-                const response = await fetch('/api/viewer/stream_info', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ livestream_id: streamId })
-                });
+                const data = await apiPost("/api/livestream/retrieve", { livestream_id: livestreamId });
 
-                const data = await response.json();
-                if (data.error) throw new Error(data.error);
+                const streamDetails = data.upstream_response?.stream_details || data.stream_details;
+                const user = data.upstream_response?.user || userData || {};
 
-                updateUI(data);
-                joinStream(data.agora_app_id, data.stream_details);
+                if (!streamDetails) throw new Error("No stream_details in response");
+
+                updateUI({ stream_details: streamDetails, user });
+                joinStream(AGORA_APP_ID, streamDetails);
 
             } catch (err) {
                 console.error(err);
                 statusLabel.innerText = "Error";
                 statusDot.className = "dot";
-                alert("Failed to fetch: " + err.message);
+                alert("Failed to load stream: " + err.message);
             }
         }
 
+        // ── UI update ─────────────────────────────────────────────────────────────
         function updateUI(data) {
-            document.getElementById('info-card').style.display = 'flex';
-            document.getElementById('streamer-name').innerText = data.user?.name || "Unknown";
-            document.getElementById('viewers').innerText = (data.stream_details?.viewer_count || 0) + " Viewers";
-            document.getElementById('headline').innerText = data.stream_details?.headline || "";
-            document.getElementById('avatar').src = data.user?.profile_image?.thumbnail_url || "";
+            document.getElementById("info-card").style.display = "flex";
+            document.getElementById("streamer-name").innerText = data.user?.name || "Unknown";
+            document.getElementById("viewers").innerText = (data.stream_details?.viewer_count || 0) + " Viewers";
+            document.getElementById("headline").innerText = data.stream_details?.headline || "";
+            document.getElementById("avatar").src = data.user?.profile_image?.thumbnail_url || "";
         }
 
+        // ── Agora join ────────────────────────────────────────────────────────────
         async function joinStream(appId, details) {
-            const statusLabel = document.getElementById('status-label');
-            const statusDot = document.getElementById('status-dot');
+            const statusLabel = document.getElementById("status-label");
+            const statusDot = document.getElementById("status-dot");
 
             try {
-                if (client.connectionState === 'CONNECTED') await client.leave();
-
+                if (client.connectionState === "CONNECTED") await client.leave();
                 await client.join(appId, details.channel_id, details.agora_channel_token, details.agora_id);
-
                 statusLabel.innerText = "Live Now";
                 statusDot.className = "dot online";
-                document.getElementById('placeholder').style.display = 'none';
-
+                document.getElementById("placeholder").style.display = "none";
             } catch (err) {
                 console.error(err);
                 statusLabel.innerText = "Failed";
@@ -548,10 +612,9 @@
         client.on("user-published", async (user, mediaType) => {
             await client.subscribe(user, mediaType);
             remoteUser = user;
-
             if (mediaType === "video") {
                 const container = document.getElementById("remote-player");
-                container.innerHTML = '';
+                container.innerHTML = "";
                 user.videoTrack.play(container);
             }
             if (mediaType === "audio") {
@@ -559,89 +622,34 @@
             }
         });
 
+        // ── Player controls ───────────────────────────────────────────────────────
         function toggleMute() {
             if (!remoteUser || !remoteUser.audioTrack) return;
             isMuted = !isMuted;
             remoteUser.audioTrack.setVolume(isMuted ? 0 : 100);
-            document.getElementById('mute-icon').innerText = isMuted ? 'volume_off' : 'volume_up';
-            document.getElementById('mute-icon').parentElement.classList.toggle('active', isMuted);
+            document.getElementById("mute-icon").innerText = isMuted ? "volume_off" : "volume_up";
+            document.getElementById("mute-icon").parentElement.classList.toggle("active", isMuted);
         }
 
         function toggleBlur() {
             isBlurred = !isBlurred;
-            document.getElementById('remote-player').classList.toggle('blur-active', isBlurred);
-            document.getElementById('blur-icon').innerText = isBlurred ? 'blur_off' : 'blur_on';
-            document.getElementById('blur-icon').parentElement.classList.toggle('active', isBlurred);
+            document.getElementById("remote-player").classList.toggle("blur-active", isBlurred);
+            document.getElementById("blur-icon").innerText = isBlurred ? "blur_off" : "blur_on";
+            document.getElementById("blur-icon").parentElement.classList.toggle("active", isBlurred);
         }
 
         function toggleMini() {
             isMini = !isMini;
-            document.getElementById('viewport').classList.toggle('mini-mode', isMini);
-            document.getElementById('mini-icon').innerText = isMini ? 'fullscreen_exit' : 'picture_in_picture_alt';
+            document.getElementById("viewport").classList.toggle("mini-mode", isMini);
+            document.getElementById("mini-icon").innerText = isMini ? "fullscreen_exit" : "picture_in_picture_alt";
         }
 
         function toggleFullscreen() {
-            const elem = document.getElementById('viewport');
+            const elem = document.getElementById("viewport");
             if (!document.fullscreenElement) {
                 elem.requestFullscreen().catch(err => alert(err.message));
             } else {
                 document.exitFullscreen();
-            }
-        }
-
-        async function toggleAutoGift() {
-            const toggle = document.getElementById('auto-gift-toggle');
-            const statusLabel = document.getElementById('gift-status-label');
-            const statusDot = document.getElementById('gift-status-dot');
-            const streamId = document.getElementById('stream-id').value;
-
-            if (toggle.checked) {
-                if (!streamId) {
-                    alert("Please enter a Stream ID first");
-                    toggle.checked = false;
-                    return;
-                }
-
-                statusLabel.innerText = "Starting...";
-                try {
-                    const resp = await fetch('/api/auto/gift', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            code: 10,
-                            livestream_id: streamId,
-                            worker: 2,
-                            use_proxy: false
-                        })
-                    });
-                    const data = await resp.json();
-                    if (resp.ok) {
-                        statusLabel.innerText = "Running";
-                        statusDot.classList.add('online', 'pulse');
-                    } else {
-                        throw new Error(data.message || data.error);
-                    }
-                } catch (err) {
-                    alert("Failed to start auto-gift: " + err.message);
-                    toggle.checked = false;
-                    statusLabel.innerText = "Inactive";
-                    statusDot.classList.remove('online', 'pulse');
-                }
-            } else {
-                statusLabel.innerText = "Stopping...";
-                try {
-                    const resp = await fetch('/api/auto/gift', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code: 12 })
-                    });
-                    if (resp.ok) {
-                        statusLabel.innerText = "Inactive";
-                        statusDot.classList.remove('online', 'pulse');
-                    }
-                } catch (err) {
-                    console.error(err);
-                }
             }
         }
     </script>

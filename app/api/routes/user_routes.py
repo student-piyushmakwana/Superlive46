@@ -162,11 +162,16 @@ async def get_top_gifters():
 async def search_users():
     """
     Exposes POST /users/search locally.
-    Expects 'search_query' and 'auth_token'.
+    Expects 'search_query' (or 'query') and optionally 'auth_token'.
     """
     try:
-        data = await request.get_json()
-        if not data or 'search_query' not in data:
+        data = await request.get_json(force=True, silent=True)
+        if not data:
+            return jsonify({"error": "Missing or invalid JSON body"}), 400
+        
+        # Accept both 'search_query' and 'query' as field name
+        search_query = data.get('search_query') or data.get('query')
+        if not search_query:
             return jsonify({"error": "Missing search_query"}), 400
             
         proxy_url = data.get("proxy")
@@ -184,9 +189,9 @@ async def search_users():
             }
             auth_token = None
         
-        logger.info(f"Searching users for '{data['search_query']}' via {session['domain_config']['origin']}...")
+        logger.info(f"Searching users for '{search_query}' via {session['domain_config']['origin']}...")
         result = await SuperliveService.search_users(
-            search_query=data["search_query"],
+            search_query=search_query,
             auth_token=auth_token,
             device_profile=session["profile"],
             domain_config=session["domain_config"],

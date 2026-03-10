@@ -22,7 +22,9 @@ setup_logger()
 logger = logging.getLogger("superlive.main")
 
 def create_app():
-    app = Quart(__name__)
+    import os
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    app = Quart(__name__, static_folder=static_dir, static_url_path="/static")
     app = cors(app, allow_origin="*") # Enable CORS for all origins
     
     # Register blueprints with modular prefixes
@@ -54,10 +56,10 @@ def create_app():
         # Initialize persistent HTTP client
         await SuperliveHttpClient.get_client()
         
-        # Start keep-alive scheduler (every 10 minutes)
-        scheduler.add_job(keep_alive, 'interval', minutes=10)
+        # Start keep-alive scheduler (every 14 minutes)
+        scheduler.add_job(keep_alive, 'interval', minutes=14)
         scheduler.start()
-        logger.info("APScheduler started: Keep-alive job active every 10 minutes")
+        logger.info("APScheduler started: Keep-alive job active every 14 minutes")
 
     @app.after_serving
     async def shutdown():
