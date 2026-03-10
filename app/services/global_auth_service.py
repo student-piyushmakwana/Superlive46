@@ -66,9 +66,9 @@ class GlobalAuthService:
 
     @classmethod
     async def _refresh_token_unlocked(cls) -> Optional[tuple[str, dict]]:
-        if not cls._collection:
+        if cls._collection is None:
             await cls.init_db()
-            if not cls._collection:
+            if cls._collection is None:
                 return None, None
 
         try:
