@@ -1,7 +1,6 @@
-import os
 import asyncio
 import logging
-from motor.motor_asyncio import AsyncIOMotorClient
+import random
 from typing import Optional, Dict
 
 from app.services.superlive_service import SuperliveService
@@ -11,13 +10,18 @@ logger = logging.getLogger("superlive.services.global_auth")
 class GlobalAuthService:
     """
     Manages a single global authenticated session for the entire application.
-    Fetches random accounts from MongoDB, logs them in, and caches the auth_token.
+    Fetches random accounts from a hardcoded list, logs them in, and caches the auth_token.
     This token is injected into requests that require authentication but lack a user session.
     """
     
-    _mongo_client: Optional[AsyncIOMotorClient] = None
-    _db = None
-    _collection = None
+    _ACCOUNTS = [
+        {"email": "origin.ukrain@atomicmail.io", "password": "Piyush@123"},
+        {"email": "origin.lebanon@atomicmail.io", "password": "Piyush@123"},
+        {"email": "origin.piyush@atomicmail.io", "password": "Piyush@123"},
+        {"email": "rajat@ibolinva.com", "password": "piyush1234"},
+        {"email": "piyush.india@atomicmail.io", "password": "Piyush@123"},
+        {"email": "india.piyush@atomicmail.io", "password": "Piyush@123"}
+    ]
     
     # Global cached token and proxy
     _cached_auth_token: Optional[str] = None
@@ -29,32 +33,22 @@ class GlobalAuthService:
 
     @classmethod
     async def init_db(cls):
-        """Initializes the MongoDB connection."""
-        uri = os.environ.get("MONGO_URI", "mongodb+srv://Rajat:2844@cluster0.gpq2duh.mongodb.net/?retryWrites=true&w=majority")
-        
-        try:
-            if not cls._mongo_client:
-                cls._mongo_client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
-                cls._db = cls._mongo_client["Superlive"]
-                cls._collection = cls._db["accounts"]
-                # Verify connection
-                await cls._mongo_client.server_info()
-                logger.info("Successfully connected to MongoDB Cluster0 > Superlive.accounts")
-        except Exception as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
+        """Deprecated: No longer using MongoDB. Kept for backwards compatibility with main.py startup."""
+        logger.info("GlobalAuthService: Using hardcoded accounts list. No DB to initialize.")
+        pass
 
     @classmethod
     async def get_valid_auth_token(cls) -> Optional[tuple[str, dict]]:
         """
         Returns (auth_token, session_dict).
-        If no valid token is cached, fetches a new one from DB and logs in.
+        If no valid token is cached, fetches a new one from the hardcoded list and logs in.
         session_dict contains: {"guid": ..., "profile": ..., "domain_config": ...}
         """
         async with cls._lock:
             if cls._cached_auth_token and cls._device_session:
                 return cls._cached_auth_token, cls._device_session
             
-            logger.info("No global auth token found. Fetching a new one from MongoDB...")
+            logger.info("No global auth token found. Fetching via a hardcoded account...")
             return await cls._refresh_token_unlocked()
 
     @classmethod
@@ -66,31 +60,13 @@ class GlobalAuthService:
 
     @classmethod
     async def _refresh_token_unlocked(cls) -> Optional[tuple[str, dict]]:
-        if cls._collection is None:
-            await cls.init_db()
-            if cls._collection is None:
-                return None, None
-
         try:
-            # 1. Fetch a random unused account from DB
-            pipeline = [
-                {"$match": {"status": "created_with_balance"}},
-                {"$sample": {"size": 1}}
-            ]
-            
-            cursor = cls._collection.aggregate(pipeline)
-            accounts = await cursor.to_list(length=1)
-            
-            if not accounts:
-                logger.error("No valid accounts found in MongoDB with status 'created_with_balance'")
-                return None, None
-                
-            account = accounts[0]
+            # 1. Fetch a random unused account from list
+            account = random.choice(cls._ACCOUNTS)
             email = account["email"]
-            # Email serves as the password
-            password = email
+            password = account["password"]
             
-            logger.info(f"Selected MongoDB account {email}. Logging into Superlive...")
+            logger.info(f"Selected hardcoded account {email}. Logging into Superlive...")
 
             # 2. Register Device Session first
             device_res = await SuperliveService.register_device()

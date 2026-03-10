@@ -1,10 +1,9 @@
 quart
 quart-cors
+python-dotenv
 httpx
 requests
-python-dotenv
 coloredlogs
 APScheduler
 hypercorn
 faker
-motor
