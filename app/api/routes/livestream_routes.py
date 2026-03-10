@@ -3,6 +3,7 @@ import httpx
 from quart import Blueprint, request, jsonify
 from app.services.superlive_service import SuperliveService
 from app.core.session_manager import SessionStore
+from app.services.global_auth_service import GlobalAuthService
 
 logger = logging.getLogger("superlive.api.livestream")
 
@@ -13,6 +14,7 @@ async def retrieve_livestream():
     """
     Exposes POST /livestream/retrieve locally.
     Expects 'livestream_id'. 'auth_token' is optional.
+    If auth_token is missing, uses the global MongoDB-backed token to allow private stream access.
     """
     try:
         data = await request.get_json()
@@ -24,29 +26,69 @@ async def retrieve_livestream():
 
         if auth_token and auth_token in SessionStore.ACTIVE_USERS:
             session = SessionStore.ACTIVE_USERS[auth_token]
-        else:
-            logger.info("No active session, registering fresh device for livestream retrieve...")
-            device_res = await SuperliveService.register_device(proxy_url=proxy_url)
-            session = {
-                "guid": device_res["upstream_response"]["guid"],
-                "profile": device_res["device_profile"],
-                "domain_config": device_res["domain_config"]
-            }
-            auth_token = None
+            domain = session["domain_config"]["origin"]
+            
+            logger.info(f"Retrieving livestream {data['livestream_id']} via {domain} (User Auth)...")
+            result = await SuperliveService.retrieve_livestream(
+                livestream_id=str(data["livestream_id"]),
+                auth_token=auth_token,
+                device_profile=session["profile"],
+                domain_config=session["domain_config"],
+                device_guid=session["guid"],
+                proxy_url=proxy_url
+            )
+            return jsonify(result), 200
+            
+        # Global Auth Fallback
+        logger.info("No user session, attempting Global Auth fallback for private livestream retrieve...")
         
-        domain = session["domain_config"]["origin"]
-        logger.info(f"Retrieving livestream {data['livestream_id']} via {domain}...")
-        
-        result = await SuperliveService.retrieve_livestream(
-            livestream_id=str(data["livestream_id"]),
-            auth_token=auth_token,
-            device_profile=session["profile"],
-            domain_config=session["domain_config"],
-            device_guid=session["guid"],
-            proxy_url=proxy_url
-        )
-        
-        return jsonify(result), 200
+        for attempt in range(2):
+            if attempt == 0:
+                global_token, global_session = await GlobalAuthService.get_valid_auth_token()
+            else:
+                logger.info("Retrying with a freshly minted global auth token...")
+                global_token, global_session = await GlobalAuthService.force_refresh_token()
+                
+            if not global_token or not global_session:
+                # If we absolutely cannot get a global token, fallback to anonymous device registration
+                logger.warning("Global auth unavailable. Falling back to anonymous retrieve...")
+                device_res = await SuperliveService.register_device(proxy_url=proxy_url)
+                global_session = {
+                    "guid": device_res["upstream_response"]["guid"],
+                    "profile": device_res["device_profile"],
+                    "domain_config": device_res["domain_config"]
+                }
+                global_token = None
+                attempt = 1 # Prevent further retries on anonymous fail
+                
+            domain = global_session["domain_config"]["origin"]
+            logger.info(f"Retrieving livestream {data['livestream_id']} via {domain} (Global Auth Attempt {attempt+1})...")
+            
+            try:
+                result = await SuperliveService.retrieve_livestream(
+                    livestream_id=str(data["livestream_id"]),
+                    auth_token=global_token,
+                    device_profile=global_session["profile"],
+                    domain_config=global_session["domain_config"],
+                    device_guid=global_session["guid"],
+                    proxy_url=proxy_url
+                )
+                
+                if result.get("upstream_response") is None and attempt == 0:
+                    logger.warning("Global Auth token failed (upstream_response is null). Invalidating and retrying...")
+                    continue
+                    
+                return jsonify(result), 200
+                
+            except RuntimeError as e:
+                # Upstream returned an HTTP error (e.g. 401/403 for expired token)
+                if attempt == 0 and global_token:
+                    logger.warning(f"Global Auth token rejected by upstream: {e}. Invalidating and retrying...")
+                    continue
+                # If we still fail on attempt 2 or as anonymous, raise to outer block
+                raise
+
+        return jsonify({"error": "Failed to retrieve stream after retries"}), 500
         
     except httpx.HTTPStatusError as e:
         logger.error(f"Upstream HTTP Error: {e.response.text}")

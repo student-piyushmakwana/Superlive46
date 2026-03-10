@@ -54,7 +54,9 @@ def create_app():
     @app.before_serving
     async def startup():
         # Initialize persistent HTTP client
+        from app.services.global_auth_service import GlobalAuthService
         await SuperliveHttpClient.get_client()
+        await GlobalAuthService.init_db()
         
         # Start keep-alive scheduler (every 14 minutes)
         scheduler.add_job(keep_alive, 'interval', minutes=14)

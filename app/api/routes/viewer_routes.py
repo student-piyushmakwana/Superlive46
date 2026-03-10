@@ -3,6 +3,7 @@ import httpx
 from quart import Blueprint, request, jsonify, render_template
 from app.services.superlive_service import SuperliveService
 from app.core.session_manager import SessionStore
+from app.services.global_auth_service import GlobalAuthService
 
 logger = logging.getLogger("superlive.api.viewer")
 
@@ -22,7 +23,7 @@ async def health():
 async def get_stream_info():
     """
     Fetches stream details for a given livestream_id.
-    Registers a temporary device anonymous session if needed.
+    Uses the global auth token to ensure private streams are accessible.
     """
     try:
         logger.info("--- Entering get_stream_info ---")
@@ -36,22 +37,49 @@ async def get_stream_info():
         livestream_id = str(data["livestream_id"])
         proxy_url = data.get("proxy")
         
-        logger.info(f"Fetching stream info for {livestream_id}...")
+        logger.info(f"Fetching stream info for {livestream_id} using global auth...")
         
-        # Register a temporary device to get an anonymous context
-        device_res = await SuperliveService.register_device(proxy_url=proxy_url)
+        for attempt in range(2):
+            if attempt == 0:
+                global_token, global_session = await GlobalAuthService.get_valid_auth_token()
+            else:
+                global_token, global_session = await GlobalAuthService.force_refresh_token()
+                
+            if not global_token or not global_session:
+                # Fallback to anonymous
+                device_res = await SuperliveService.register_device(proxy_url=proxy_url)
+                global_session = {
+                    "guid": device_res["upstream_response"]["guid"],
+                    "profile": device_res["device_profile"],
+                    "domain_config": device_res["domain_config"]
+                }
+                global_token = None
+                break
+                
+            try:
+                stream_result = await SuperliveService.retrieve_livestream(
+                    livestream_id=livestream_id,
+                    auth_token=global_token,
+                    device_profile=global_session["profile"],
+                    domain_config=global_session["domain_config"],
+                    device_guid=global_session["guid"],
+                    proxy_url=proxy_url
+                )
+                
+                if stream_result.get("upstream_response") is None and attempt == 0:
+                    logger.warning("Global Auth token failed (upstream_response is null). Invalidating and retrying...")
+                    continue
+                    
+                break
+                
+            except RuntimeError as e:
+                # Upstream returned an HTTP error (e.g. 401/403 for expired token)
+                if attempt == 0 and global_token:
+                    logger.warning(f"Global Viewer token rejected by upstream: {e}. Invalidating and retrying...")
+                    continue
+                raise
         
-        # Fetch stream details
-        stream_result = await SuperliveService.retrieve_livestream(
-            livestream_id=livestream_id,
-            auth_token=None,
-            device_profile=device_res["device_profile"],
-            domain_config=device_res["domain_config"],
-            device_guid=device_res["upstream_response"]["guid"],
-            proxy_url=proxy_url
-        )
-        
-        if "upstream_response" in stream_result:
+        if stream_result and "upstream_response" in stream_result and stream_result["upstream_response"]:
             return jsonify({
                 "status": "success",
                 "stream_details": stream_result["upstream_response"].get("stream_details"),
@@ -61,12 +89,6 @@ async def get_stream_info():
         else:
             return jsonify(stream_result), 200
             
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Upstream HTTP Error: {e.response.text}")
-        return jsonify({
-            "error": "Upstream API Error", 
-            "status_code": e.response.status_code
-        }), e.response.status_code
     except Exception as e:
         logger.error(f"Viewer route error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500

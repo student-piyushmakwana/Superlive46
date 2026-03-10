@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -565,7 +565,12 @@
             statusLabel.innerText = "Connecting...";
 
             try {
-                const data = await apiPost("/api/livestream/retrieve", { livestream_id: livestreamId });
+                const payload = { livestream_id: livestreamId };
+                if (userData && userData.auth_token) {
+                    payload.auth_token = userData.auth_token;
+                }
+                
+                const data = await apiPost("/api/livestream/retrieve", payload);
 
                 const streamDetails = data.upstream_response?.stream_details || data.stream_details;
                 const user = data.upstream_response?.user || userData || {};
