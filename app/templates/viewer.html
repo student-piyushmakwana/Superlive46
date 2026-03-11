@@ -461,6 +461,19 @@
                 </div>
             </div>
 
+            <div class="card" id="recent-pvts-card" style="display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="material-symbols-rounded" style="color: var(--md-sys-color-primary)">history</span>
+                        <span style="font-weight: 700; font-size: 16px;">Recent Pvts</span>
+                    </div>
+                    <button class="icon-btn" onclick="clearRecentPvts()" title="Clear Recent" style="width: 36px; height: 36px;">
+                        <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+                    </button>
+                </div>
+                <div class="search-results" id="recent-pvts-list"></div>
+            </div>
+
             <div id="info-card" class="card" style="display: none;">
                 <div style="display: flex; align-items: center; gap: 16px;">
                     <img id="avatar" src=""
@@ -545,6 +558,12 @@
                 const data = await apiPost("/api/users/search", { search_query: query });
                 const items = data.upstream_response?.items || [];
                 renderSearchResults(items);
+                
+                if (items.length > 0) {
+                    let matchedUser = items.find(u => u.user_id.toString() === query) || items[0];
+                    addToRecent(matchedUser);
+                }
+
                 statusLabel.innerText = "Idle";
             } catch (err) {
                 console.error(err);
@@ -689,6 +708,82 @@
                 document.exitFullscreen();
             }
         }
+
+        // ── Recent Pvts ───────────────────────────────────────────────────────────
+        function addToRecent(user) {
+            let recents = JSON.parse(localStorage.getItem("recent_pvts") || "[]");
+            recents = recents.filter(u => u.user_id !== user.user_id);
+            recents.unshift(user);
+            if (recents.length > 10) recents.pop();
+            localStorage.setItem("recent_pvts", JSON.stringify(recents));
+            loadRecentPvts();
+        }
+
+        function loadRecentPvts() {
+            const recents = JSON.parse(localStorage.getItem("recent_pvts") || "[]");
+            const card = document.getElementById("recent-pvts-card");
+            const list = document.getElementById("recent-pvts-list");
+            if (!card || !list) return;
+            
+            list.innerHTML = "";
+            
+            if (recents.length === 0) {
+                card.style.display = "none";
+                return;
+            }
+            card.style.display = "flex";
+            
+            recents.forEach(user => {
+                const item = document.createElement("div");
+                item.className = "user-result-item";
+                item.innerHTML = `
+                    <img src="${user.profile_image?.thumbnail_url || ""}" onerror="this.src=''"
+                        style="background: #49454F;">
+                    <div class="user-result-info">
+                        <div class="user-result-name">${user.name || "Unknown"}</div>
+                        <div class="user-result-sub">Lv.${user.level || 0} · ID: ${user.user_id}</div>
+                    </div>
+                    <span class="material-symbols-rounded" style="color: var(--md-sys-color-primary); font-size: 20px;">play_circle</span>
+                `;
+                item.onclick = () => playRecentUser(user);
+                list.appendChild(item);
+            });
+        }
+
+        async function playRecentUser(user) {
+            document.getElementById("search-query").value = user.user_id;
+            const statusLabel = document.getElementById("status-label");
+            statusLabel.innerText = "Checking...";
+            
+            try {
+                const data = await apiPost("/api/users/search", { search_query: user.user_id.toString() });
+                const items = data.upstream_response?.items || [];
+                if (items.length > 0) {
+                    const freshUser = items.find(u => u.user_id === user.user_id) || items[0];
+                    renderSearchResults(items);
+                    if (freshUser.livestream_id) {
+                        fetchAndPlay(freshUser.livestream_id, freshUser);
+                    } else {
+                        alert("User is not live currently.");
+                        statusLabel.innerText = "Idle";
+                    }
+                } else {
+                    alert("User not found.");
+                    statusLabel.innerText = "Idle";
+                }
+            } catch (err) {
+                console.error(err);
+                statusLabel.innerText = "Error";
+                alert("Failed to check user: " + err.message);
+            }
+        }
+
+        function clearRecentPvts() {
+            localStorage.removeItem("recent_pvts");
+            loadRecentPvts();
+        }
+
+        document.addEventListener("DOMContentLoaded", loadRecentPvts);
     </script>
 </body>
 
