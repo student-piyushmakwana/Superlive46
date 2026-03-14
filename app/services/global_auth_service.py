@@ -15,12 +15,26 @@ class GlobalAuthService:
     """
     
     _ACCOUNTS = [
-        {"email": "origin.ukrain@atomicmail.io", "password": "Piyush@123"},
-        {"email": "origin.lebanon@atomicmail.io", "password": "Piyush@123"},
-        {"email": "origin.piyush@atomicmail.io", "password": "Piyush@123"},
-        {"email": "rajat@ibolinva.com", "password": "piyush1234"},
-        {"email": "piyush.india@atomicmail.io", "password": "Piyush@123"},
-        {"email": "india.piyush@atomicmail.io", "password": "Piyush@123"}
+        {
+    "email": "vejybe@denipl.net",
+    "password": "vejybe@denipl.net"
+  },
+  {
+    "email": "qetoli@fxzig.com",
+    "password": "qetoli@fxzig.com"
+  },
+  {
+    "email": "v9t5vh@qabq.com",
+    "password": "v9t5vh@qabq.com"
+  },
+  {
+    "email": "rbnr1w@qabq.com",
+    "password": "rbnr1w@qabq.com"
+  },
+  {
+    "email": "ayxkcv@qabq.com",
+    "password": "ayxkcv@qabq.com"
+  }
     ]
     
     # Global cached token and proxy
